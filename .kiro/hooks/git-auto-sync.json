@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Git Auto Sync",
+      "trigger": "Stop",
+      "description": "에이전트 작업(턴)이 끝날 때마다 변경사항을 커밋하고, 원격 저장소를 pull(rebase) 한 뒤 push하여 GitHub와 동기화합니다.",
+      "action": {
+        "type": "command",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"d:\\workspace\\kiro-temp\\scripts\\git_sync.ps1\"",
+        "timeout": 60
+      }
+    }
+  ]
+}
