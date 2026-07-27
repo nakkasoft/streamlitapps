@@ -4,3 +4,4 @@ beautifulsoup4==4.12.3
 pandas==2.2.3
 plotly==5.24.1
 yt-dlp==2024.12.23
+playwright==1.49.0

@@ -8,7 +8,7 @@
 | 앱 | 포트 | 설명 | 상태 |
 |---|---|---|---|
 | 🏠 허브 (portal.py) | 8500 | 전체 앱 소개 및 바로가기 | 운영중 |
-| 🏕️ 캠핑장 빈자리 찾기 | 8502 | 날짜별 캠핑장 예약 가능 현황 조회 (xticket API) | 운영중 |
+| 🏕️ 캠핑장 빈자리 찾기 | 8502 | 날짜별 캠핑장 예약 가능 현황 조회 (Playwright + xticket) | 운영중 |
 | 🎵 유튜브 음악 다운로드 | 8503 | 유튜브 URL → MP3 변환/다운로드, 3일 후 자동 삭제 | 운영중 |
 | 📚 도서관 책 찾기 | 8501 | 관심 도서 대여 현황 조회 | 보류중 (샘플 데이터만 표시) |
 
@@ -21,7 +21,8 @@
 │   ├── camping/                 # 캠핑장 빈자리 찾기
 │   │   ├── app.py                # Streamlit 화면
 │   │   ├── config.py             # 캠핑장 목록/설정 (여기에 캠핑장 추가)
-│   │   └── scraper.py            # xticket API 조회 로직
+│   │   ├── scraper.py            # Playwright 기반 세션/조회 로직
+│   │   └── scraper_sample.py     # 콘솔 출력용 원본 스크립트 (동작 참고용)
 │   ├── youtube_music/            # 유튜브 음악 다운로드
 │   │   ├── app.py                # Streamlit 화면
 │   │   ├── config.py             # 다운로드 경로/보관 기간 설정
@@ -42,6 +43,7 @@
 - Python 3.10 이상
 - Linux 서버 (Ubuntu 기준으로 작성됨)
 - FFmpeg (유튜브 음악 다운로드 앱에서 MP3 변환에 필요)
+- Playwright + Chromium (캠핑장 앱에서 예약 사이트 세션을 만들기 위해 headless로 사용, 화면은 뜨지 않음)
 
 ## 설치 및 실행 (서버)
 
@@ -58,6 +60,7 @@ chmod +x setup_linux.sh
 `setup_linux.sh`가 하는 일:
 - Python 가상환경(`venv`) 생성
 - `requirements.txt` 패키지 설치
+- Playwright용 Chromium 및 시스템 의존성 설치 (`playwright install --with-deps chromium`)
 - 실행에 필요한 `logs/`, `pids/` 디렉토리 생성
 - 실행 스크립트에 실행 권한 부여
 
@@ -67,6 +70,11 @@ MP3 변환을 위해 FFmpeg도 설치해야 합니다.
 sudo apt update
 sudo apt install ffmpeg -y
 ```
+
+> **참고 (저사양 서버):** Playwright의 Chromium 설치는 용량이 크고(약 150~300MB) 실행 시 메모리를 소비합니다.
+> RAM이 1GB 내외인 서버에서는 `playwright install --with-deps chromium` 단계가 느리거나 실패할 수 있습니다.
+> 이 경우 스왑 메모리를 늘리거나, 캠핑장 앱만 별도의 조금 더 넉넉한 서버/스케줄에서 운영하는 것을 고려하세요.
+> 조회는 상시 구동이 아니라 "🔍 빈자리 조회" 버튼을 눌렀을 때만 브라우저를 잠깐 띄우고 끄는 방식이라, 상시 리소스 점유는 없습니다.
 
 ### 2. 서버 호스트 설정
 
@@ -104,11 +112,20 @@ tail -f logs/*.log
 
 ### 🏕️ 캠핑장 빈자리 찾기
 
-1. 조회할 시작/종료 날짜를 선택합니다.
+1. 조회할 시작/종료 날짜를 선택합니다 (최대 31일).
 2. 조회할 캠핑장을 선택합니다 (다중 선택 가능).
-3. "🔍 빈자리 조회" 버튼을 누르면 선택한 기간/캠핑장의 예약 가능 현황을 보여줍니다.
+3. "🔍 빈자리 조회" 버튼을 누르면 headless Chromium이 각 캠핑장의 예약 페이지에 접속해 세션을 만들고, 상품군(야영데크/글램핑 등)별로 예약 가능 현황을 조회합니다.
 
-새 캠핑장을 추가하려면 `apps/camping/config.py`의 `CAMPSITES` 리스트에 xticket API 정보(`shop_code`, `product_group_code` 등)를 추가하면 됩니다.
+camp.xticket.kr은 예약 조회 API를 호출하기 전에 반드시 실제 예약 페이지 접속을 통한 브라우저 세션이 필요해서, 단순 HTTP 요청만으로는 조회가 되지 않습니다. 이 때문에 Playwright로 페이지를 열어 세션을 만든 뒤, 그 세션 위에서 조회 API를 호출하는 방식을 사용합니다 (자세한 내용은 `apps/camping/scraper.py` 상단 주석 참고).
+
+새 캠핑장을 추가하려면 `apps/camping/config.py`의 `CAMPSITES` 리스트에 이름과 `shop_encode`(예약 페이지 URL의 `shopEncode=` 뒤에 오는 값)를 추가하면 됩니다.
+
+```python
+CAMPSITES = [
+    {"name": "캠핑장 이름", "shop_encode": "예약 페이지 URL의 shopEncode 값"},
+    ...
+]
+```
 
 ### 🎵 유튜브 음악 다운로드
 

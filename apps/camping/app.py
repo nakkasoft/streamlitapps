@@ -1,7 +1,7 @@
 """
 캠핑장 빈자리 찾기
 날짜를 선택하면 등록된 캠핑장들의 예약 가능 현황을 자동으로 조회합니다.
-페이지 접속/새로고침/조건 변경 시마다 최신 데이터를 다시 가져옵니다 (캐시 없음).
+Playwright(headless 브라우저)로 실제 예약 페이지 세션을 만들어 조회합니다.
 실행: streamlit run apps/camping/app.py --server.port 8502
 """
 
@@ -14,8 +14,8 @@ import os
 # 프로젝트 루트를 path에 추가
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from apps.camping.config import CAMPSITES
-from apps.camping.scraper import fetch_campsite_availability
+from apps.camping.config import CAMPSITES, BASE_URL
+from apps.camping.scraper import fetch_availability
 from common.config import HUB_URL
 
 st.set_page_config(
@@ -26,6 +26,7 @@ st.set_page_config(
 
 st.title("🏕️ 캠핑장 빈자리 찾기")
 st.markdown("날짜와 캠핑장을 선택한 뒤 '빈자리 조회' 버튼을 누르면 최신 예약 현황을 조회합니다.")
+st.caption("실제 예약 페이지 세션을 통해 조회하므로 캠핑장/날짜 수에 따라 다소 시간이 걸릴 수 있습니다.")
 st.markdown("---")
 
 # 날짜 선택 UI
@@ -41,7 +42,7 @@ with col1:
 with col2:
     end_date = st.date_input(
         "종료 날짜",
-        value=datetime.now().date() + timedelta(days=14),
+        value=datetime.now().date() + timedelta(days=7),
         min_value=datetime.now().date(),
     )
 
@@ -64,6 +65,8 @@ if search_btn:
         st.warning("캠핑장을 하나 이상 선택해주세요.")
     elif start_date > end_date:
         st.warning("시작 날짜가 종료 날짜보다 클 수 없습니다.")
+    elif (end_date - start_date).days > 30:
+        st.warning("조회 기간은 최대 31일까지 가능합니다. 기간을 줄여주세요.")
     else:
         # 날짜 리스트 생성 (YYYYMMDD 형식)
         date_list = []
@@ -75,25 +78,22 @@ if search_btn:
         # 선택된 캠핑장만 필터
         selected_configs = [c for c in CAMPSITES if c["name"] in selected_campsites]
 
-        # 조회 진행
-        all_results = []
+        # 조회 진행 (Playwright 브라우저 1개를 재사용하며 캠핑장별로 순회)
         progress_bar = st.progress(0)
         status_text = st.empty()
 
-        total_steps = len(selected_configs)
-        for idx, campsite in enumerate(selected_configs):
-            status_text.text(f"조회 중... {campsite['name']} ({idx + 1}/{total_steps})")
-            df = fetch_campsite_availability(campsite, date_list)
-            all_results.append(df)
-            progress_bar.progress((idx + 1) / total_steps)
+        def on_progress(done, total, campsite):
+            status_text.text(f"조회 중... {campsite['name']} ({done}/{total})")
+            progress_bar.progress(done / total)
+
+        status_text.text(f"브라우저 세션 준비 중... (0/{len(selected_configs)})")
+        result_df = fetch_availability(selected_configs, date_list, progress_callback=on_progress)
 
         progress_bar.empty()
         status_text.empty()
 
-        # 결과 합치기
-        if all_results:
-            result_df = pd.concat(all_results, ignore_index=True)
-
+        # 결과 표시
+        if not result_df.empty:
             # 요약 메트릭
             available_count = len(result_df[result_df["상태"] == "예약가능"])
             full_count = len(result_df[result_df["상태"] == "매진"])
@@ -134,12 +134,15 @@ if search_btn:
                     use_container_width=True,
                     hide_index=True,
                 )
+        else:
+            st.info("조회 결과가 없습니다.")
 
         # 캠핑장 예약 링크
         st.markdown("---")
         st.subheader("🔗 예약 사이트 바로가기")
         for campsite in selected_configs:
-            st.markdown(f"- [{campsite['name']}]({campsite['web_url']})")
+            reserve_url = f"{BASE_URL}/web/main?shopEncode={campsite['shop_encode']}"
+            st.markdown(f"- [{campsite['name']}]({reserve_url})")
 
 st.markdown("---")
 st.markdown(f"[← 허브로 돌아가기]({HUB_URL})")

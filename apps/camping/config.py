@@ -1,30 +1,29 @@
 """
 캠핑장 앱 설정
 다중 캠핑장 지원. 새 캠핑장을 추가하려면 CAMPSITES 리스트에 항목을 추가하세요.
+
+camp.xticket.kr 예약 조회는 브라우저 세션이 필요하므로 (scraper.py 참고),
+각 캠핑장은 shop_encode(예약 페이지 URL의 shopEncode 파라미터 값)로 식별합니다.
 """
+
+BASE_URL = "https://camp.xticket.kr"
 
 # 서비스 포트
 PORT = 8502
 
 # 캠핑장 목록
-# 각 캠핑장은 xticket API 기반으로 조회합니다.
-# 새 캠핑장을 추가하려면 아래 형식에 맞춰 추가하세요.
+# shop_encode는 예약 페이지 URL의 shopEncode= 뒤에 오는 긴 해시 값입니다.
+# 예: https://camp.xticket.kr/web/main?shopEncode=<이 값>
 CAMPSITES = [
     {
-        "name": "캠핑장 A",
-        "api_url": "https://camp.xticket.kr/Web/Book/GetBookProduct010001.json",
-        "web_url": "https://camp.xticket.kr/web/main?shopEncode=5f9422e223671b122a7f2c94f4e15c6f71cd1a49141314cf19adccb98162b5b0",
-        "shop_code": "210820613601",
-        "product_group_code": "0002",
+        "name": "우이동 가족 캠핑장",
+        "shop_encode": "13896b8dd3600159017b0e96c5bd5be7df3236beaa12b8fdb7aa462bab916b2f",
     },
     {
-        "name": "캠핑장 B (xticket 예시)",
-        "api_url": "https://camp.xticket.kr/Web/Book/GetBookProduct010001.json",
-        "web_url": "https://camp.xticket.kr/web/main?shopEncode=5f9422e223671b122a7f2c94f4e15c6f71cd1a49141314cf19adccb98162b5b0",
-        "shop_code": "210820613601",  # 실제 다른 캠핑장의 shopCode로 교체
-        "product_group_code": "0002",
+        "name": "그린웨이가족캠핑장",
+        "shop_encode": "5f9422e223671b122a7f2c94f4e15c6f71cd1a49141314cf19adccb98162b5b0",
     },
 ]
 
-# 캐시 TTL (초)
-CACHE_TTL = 300  # 5분
+BOOK_DAYS = "1"
+TWO_STAY_DAYS = "0"
