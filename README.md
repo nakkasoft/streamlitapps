@@ -10,7 +10,7 @@
 | 🏠 허브 (portal.py) | 8500 | 전체 앱 소개 및 바로가기 | 운영중 |
 | 🏕️ 캠핑장 빈자리 찾기 | 8502 | 날짜별 캠핑장 예약 가능 현황 조회 (Playwright + xticket) | 운영중 |
 | 🎵 유튜브 음악 다운로드 | 8503 | 유튜브 URL → MP3 변환/다운로드, 3일 후 자동 삭제 | 운영중 |
-| 📚 도서관 책 찾기 | 8501 | 관심 도서 대여 현황 조회 | 보류중 (샘플 데이터만 표시) |
+| 📚 도서관 책 찾기 | 8501 | 서울시립도서관 통합검색 무인예약 가능 도서관 확인 | 운영중 |
 
 ## 프로젝트 구조
 
@@ -28,7 +28,16 @@
 │   │   ├── config.py             # 다운로드 경로/보관 기간 설정
 │   │   ├── downloader.py         # yt-dlp 기반 다운로드 로직
 │   │   └── cleanup.py            # 오래된 파일 자동 삭제 스크립트
-│   └── library/                  # 도서관 책 찾기 (보류중)
+│   └── library/                  # 도서관 책 찾기 (서울시립도서관 무인예약 확인)
+│       ├── app.py                # Streamlit 화면 (도서 CRUD + 확인 작업 실행)
+│       ├── config.py             # 도서 목록 파일 경로/속도제한/재시도 설정
+│       ├── books.txt             # 관심 도서 목록 (CLI와 동일한 파일 형식)
+│       └── lib/                  # 핵심 로직 (원본 sblib-search/src 포팅)
+│           ├── errors.py, models.py, list_loader.py
+│           ├── searcher.py, result_parser.py, status.py
+│           ├── rate_limiter.py, retry_policy.py
+│           ├── repository.py     # 도서 목록 CRUD + books.txt 동기화
+│           └── check_runner.py   # 확인 작업 실행기 (진행 콜백 포함)
 ├── common/
 │   ├── config.py                 # 서버 호스트 등 공통 설정
 │   └── utils.py                  # 공통 유틸 (HTTP 요청 헬퍼)
@@ -44,6 +53,7 @@
 - Linux 서버 (Ubuntu 기준으로 작성됨)
 - FFmpeg (유튜브 음악 다운로드 앱에서 MP3 변환에 필요)
 - Playwright + Chromium (캠핑장 앱에서 예약 사이트 세션을 만들기 위해 headless로 사용, 화면은 뜨지 않음)
+- lxml (도서관 앱의 HTML 파싱에 사용, BeautifulSoup의 파서 백엔드)
 
 ## 설치 및 실행 (서버)
 
@@ -96,6 +106,7 @@ SERVER_HOST = "YOUR_SERVER_IP_OR_DOMAIN"
 
 ```
 http://<서버 IP>:8500   # 허브
+http://<서버 IP>:8501   # 도서관 책 찾기
 http://<서버 IP>:8502   # 캠핑장 빈자리 찾기
 http://<서버 IP>:8503   # 유튜브 음악 다운로드
 ```
@@ -146,14 +157,39 @@ crontab -e
 
 보관 기간을 변경하려면 `apps/youtube_music/config.py`의 `FILE_RETENTION_DAYS` 값을 수정하세요.
 
-### 📚 도서관 책 찾기 (보류중)
+### 📚 도서관 책 찾기
 
-현재는 화면 구조와 샘플 데이터만 존재하며, 실제 도서관 크롤링 로직(`apps/library/scraper.py`)은 아직 구현되지 않았습니다.
+서울시립도서관 통합검색에서 관심 도서의 무인예약 가능 도서관을 확인합니다.
+원본 CLI 프로젝트(`library-reservation-checker`)의 검색/파싱/재시도 로직을
+그대로 포팅했고(`apps/library/lib/`), 도서 목록 관리와 결과 표시는 Streamlit
+UI로 새로 구현했습니다.
+
+1. **도서 목록 관리** — 화면에서 제목(필수)/저자(선택)를 입력해 도서를 추가/수정/삭제합니다.
+   - 목록은 `apps/library/books.txt`에 자동 저장되며, 파일을 직접 편집해도 반영됩니다.
+   - 형식: 한 줄에 한 권, `제목` 또는 `제목 | 저자`. `#`으로 시작하는 줄은 주석.
+   - 도서는 1권 이상 50권 이하만 허용됩니다(마지막 1권은 삭제할 수 없습니다).
+2. **확인 작업 실행** — "🚀 확인 작업 시작"을 누르면 등록된 도서를 순서대로 검색합니다.
+   - 도서 1권당 최소 1초 간격으로 순차 조회합니다(대상 사이트 부하 방지).
+   - 네트워크 오류는 최대 3회 재시도하며, 재시도가 소진되면 "요청 오류"로 표시합니다.
+   - 진행 중 프로그레스 바로 현재 처리 중인 도서를 확인할 수 있습니다.
+3. **결과 확인** — 도서별로 다음 5가지 상태 중 하나로 표시됩니다.
+   - `무인예약 가능` (가능한 도서관 목록 함께 표시)
+   - `무인예약 불가` (소장은 하지만 무인예약 미지원)
+   - `검색 결과 없음`
+   - `요청 오류` (네트워크 재시도 소진)
+   - `파싱 오류` (응답 구조 해석 실패, 대상 사이트 구조 변경 가능성)
+
+> **보안 참고:** 원본 프로젝트의 HANDOFF.md에는 "API에 인증/접근 제어가 없다"는
+> 미해결 경고가 있었습니다. 이 앱은 Streamlit 자체로 통합되어 별도 API를
+> 노출하지 않지만, 서버가 인터넷에 공개되어 있다면 누구나 이 화면에 접근해
+> 도서 목록을 보거나 수정할 수 있다는 점은 동일하게 적용됩니다. 필요하면
+> 리버스 프록시 레벨의 Basic Auth나 IP 허용목록을 고려하세요.
 
 ## 로컬 개발 환경에서 개별 앱 실행
 
 ```bash
 streamlit run portal.py --server.port 8500
+streamlit run apps/library/app.py --server.port 8501
 streamlit run apps/camping/app.py --server.port 8502
 streamlit run apps/youtube_music/app.py --server.port 8503
 ```

@@ -13,15 +13,19 @@ source venv/bin/activate
 # 디렉토리 확인
 mkdir -p logs pids downloads/music
 
-echo "[1/3] 허브 시작 (port 8500)..."
+echo "[1/4] 허브 시작 (port 8500)..."
 nohup streamlit run portal.py --server.port 8500 --server.headless true > logs/portal.log 2>&1 &
 echo $! > pids/portal.pid
 
-echo "[2/3] 캠핑장 시작 (port 8502)..."
+echo "[2/4] 도서관 책 찾기 시작 (port 8501)..."
+nohup streamlit run apps/library/app.py --server.port 8501 --server.headless true > logs/library.log 2>&1 &
+echo $! > pids/library.pid
+
+echo "[3/4] 캠핑장 시작 (port 8502)..."
 nohup streamlit run apps/camping/app.py --server.port 8502 --server.headless true > logs/camping.log 2>&1 &
 echo $! > pids/camping.pid
 
-echo "[3/3] 유튜브 음악 시작 (port 8503)..."
+echo "[4/4] 유튜브 음악 시작 (port 8503)..."
 nohup streamlit run apps/youtube_music/app.py --server.port 8503 --server.headless true > logs/youtube_music.log 2>&1 &
 echo $! > pids/youtube_music.pid
 
@@ -31,6 +35,7 @@ echo "  모든 서비스가 시작되었습니다!"
 echo "========================================"
 echo ""
 echo "  허브:         http://서버IP:8500"
+echo "  도서관:       http://서버IP:8501"
 echo "  캠핑장:       http://서버IP:8502"
 echo "  유튜브 음악:  http://서버IP:8503"
 echo ""
