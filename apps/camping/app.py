@@ -107,13 +107,14 @@ if search_btn:
             st.markdown("---")
 
             # 예약 가능한 것만 먼저 강조 표시
+            # 참고: pandas Styler(.style.apply)를 st.dataframe에 넘기면 일부 서버
+            # 환경(pyarrow 25.0.0 조합)에서 세그폴트가 발생하는 것이 확인되어,
+            # 색상 강조 대신 상태를 이모지로 표시하는 방식으로 대체했습니다.
             available_df = result_df[result_df["상태"] == "예약가능"]
             if not available_df.empty:
                 st.subheader("✅ 예약 가능 객실")
                 st.dataframe(
-                    available_df.style.apply(
-                        lambda row: ["background-color: #d4edda"] * len(row), axis=1
-                    ),
+                    available_df,
                     use_container_width=True,
                     hide_index=True,
                 )
@@ -122,15 +123,14 @@ if search_btn:
 
             # 전체 현황
             with st.expander("📋 전체 조회 결과 보기"):
-                def highlight_status(row):
-                    if row["상태"] == "예약가능":
-                        return ["background-color: #d4edda"] * len(row)
-                    elif row["상태"] == "매진":
-                        return ["background-color: #f8d7da"] * len(row)
-                    return ["background-color: #fff3cd"] * len(row)
+                display_df = result_df.copy()
+                status_emoji = {"예약가능": "🟢", "매진": "🔴"}
+                display_df["상태"] = display_df["상태"].apply(
+                    lambda s: f"{status_emoji.get(s, '🟡')} {s}"
+                )
 
                 st.dataframe(
-                    result_df.style.apply(highlight_status, axis=1),
+                    display_df,
                     use_container_width=True,
                     hide_index=True,
                 )

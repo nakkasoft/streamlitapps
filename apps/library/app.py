@@ -227,18 +227,22 @@ if results:
 
     result_df = pd.DataFrame(rows)
 
-    def highlight_result(row):
-        if row["상태"] == BookStatus.UNMANNED_AVAILABLE.value:
-            return ["background-color: #d4edda"] * len(row)
-        elif row["상태"] == BookStatus.UNMANNED_UNAVAILABLE.value:
-            return ["background-color: #fff3cd"] * len(row)
-        elif row["상태"] == BookStatus.NO_RESULTS.value:
-            return [""] * len(row)
-        else:  # REQUEST_ERROR, PARSE_ERROR
-            return ["background-color: #f8d7da"] * len(row)
+    # 참고: pandas Styler(.style.apply)를 st.dataframe에 넘기면 일부 서버 환경
+    # (pyarrow 25.0.0 조합)에서 세그폴트가 발생하는 것이 확인되어, 색상 강조
+    # 대신 상태를 이모지로 표시하는 방식으로 대체했습니다.
+    status_emoji = {
+        BookStatus.UNMANNED_AVAILABLE.value: "🟢",
+        BookStatus.UNMANNED_UNAVAILABLE.value: "🟡",
+        BookStatus.NO_RESULTS.value: "⚪",
+        BookStatus.REQUEST_ERROR.value: "🔴",
+        BookStatus.PARSE_ERROR.value: "🔴",
+    }
+    result_df["상태"] = result_df["상태"].apply(
+        lambda s: f"{status_emoji.get(s, '⚪')} {s}"
+    )
 
     st.dataframe(
-        result_df.style.apply(highlight_result, axis=1),
+        result_df,
         use_container_width=True,
         hide_index=True,
     )
