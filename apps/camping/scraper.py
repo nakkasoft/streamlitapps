@@ -175,8 +175,23 @@ def fetch_availability(campsites: list[dict], dates: list[str], progress_callbac
     """
     frames = []
 
+    # 저사양(저메모리/2vCPU) 서버에서 Chromium이 렌더러/GPU/네트워크 프로세스를
+    # 여러 개 자동으로 fork하면서 CPU/메모리 경쟁으로 streamlit 프로세스까지
+    # 함께 죽는 문제(segfault)가 확인되어, 불필요한 자식 프로세스를 줄이도록
+    # 플래그를 조정한다. (--single-process는 오히려 Chromium 자체를 더
+    # 불안정하게 만드는 것이 확인되어 제외했다.)
+    launch_args = [
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--disable-setuid-sandbox",
+        "--no-sandbox",
+        "--disable-extensions",
+        "--disable-background-networking",
+        "--js-flags=--max-old-space-size=256",
+    ]
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=launch_args)
         try:
             total = len(campsites)
             for idx, campsite in enumerate(campsites):
