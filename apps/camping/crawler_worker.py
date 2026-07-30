@@ -69,7 +69,26 @@ def _get_product_groups(page, dates: list[str]) -> list:
 
 
 def _check_date(page, product_group_code: str, date_str: str) -> list[str]:
-    """특정 상품군, 특정 날짜에 예약 가능한 사이트(구역) 이름 목록을 반환한다."""
+    """특정 상품군, 특정 날짜에 예약 가능한 사이트(구역) 이름 목록을 반환한다.
+
+    중요: 예약 가능 판정은 ``select_yn == "1"`` 만으로는 부족하다. 실제 사이트의
+    프론트엔드 로직(resources/accommodation/js/main.js)을 확인한 결과,
+    ``status_code`` 값이 함께 확인되어야 한다.
+
+        function getProductClass(data) {
+            if (data.status_code == "0") {
+                if (data.select_yn == "1") { ... 예약 가능 ... }
+                else { return 'product_box saled'; }   // 매진
+            } else {
+                return 'product_box disabled';         // 비활성/수리중 등
+            }
+        }
+
+    즉 ``status_code`` 가 "0"이 아니면(관측된 값: "2"=사용불가, "3"=비활성,
+    "4"=예약대기중 등) select_yn이 "1"이어도 실제로는 선택(예약)할 수 없다.
+    반드시 ``status_code == "0"`` 이면서 ``select_yn == "1"`` 인 경우에만
+    예약 가능으로 판정한다.
+    """
     result = _fetch_json(
         page,
         "/Web/Book/GetBookProduct010001.json",
@@ -87,7 +106,7 @@ def _check_date(page, product_group_code: str, date_str: str) -> list[str]:
     return [
         room["product_name"]
         for room in result["data"]["bookProductList"]
-        if room["select_yn"] == "1"
+        if room.get("status_code") == "0" and room.get("select_yn") == "1"
     ]
 
 
