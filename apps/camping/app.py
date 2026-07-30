@@ -113,70 +113,42 @@ if search_btn:
 
             st.markdown("---")
 
-            # 캠핑장 x 날짜 x 상품군별 요약: 전체 사이트 수 대비 예약가능 사이트 수를
-            # 한눈에 볼 수 있도록 표로 정리합니다.
-            st.subheader("📊 날짜/상품군별 예약 가능 현황")
+            # 표(st.dataframe)는 셀에 긴 텍스트가 들어가면 잘려 보이는 문제가
+            # 있어서, 캠핑장 > 날짜 > 상품군별로 순수 마크다운 텍스트로
+            # 상세 결과를 출력합니다. 접었다 펼 필요 없이 스크롤만 하면
+            # 전체 내용을 바로 볼 수 있습니다.
+            st.subheader("🔎 상세 결과 (캠핑장 · 날짜 · 상품군별)")
 
-            summary_rows = []
-            for (camp, date, group), group_df in result_df.groupby(["캠핑장", "날짜", "상품군"], sort=False):
-                error_df = group_df[group_df["상태"] == "오류"]
-                if not error_df.empty:
-                    summary_rows.append({
-                        "캠핑장": camp,
-                        "날짜": date,
-                        "상품군": group,
-                        "예약가능/전체": "-",
-                        "상태": "⚠️ 조회 오류",
-                        "예약가능 사이트": error_df["객실명"].iloc[0],
-                    })
-                    continue
-
-                total_sites = len(group_df)
-                avail_sites = len(group_df[group_df["상태"] == "예약가능"])
-                avail_names = group_df[group_df["상태"] == "예약가능"]["객실명"].tolist()
-                summary_rows.append({
-                    "캠핑장": camp,
-                    "날짜": date,
-                    "상품군": group,
-                    "예약가능/전체": f"{avail_sites}/{total_sites}",
-                    "상태": "🟢 예약가능" if avail_sites > 0 else "🔴 매진",
-                    "예약가능 사이트": ", ".join(avail_names) if avail_names else "-",
-                })
-
-            summary_df = pd.DataFrame(summary_rows)
-            st.dataframe(
-                summary_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "예약가능 사이트": st.column_config.TextColumn(width="large"),
-                },
-            )
-
-            st.markdown("---")
-
-            # 캠핑장별로 나누어 상세 목록을 펼쳐볼 수 있게 제공합니다.
-            st.subheader("🔎 상세 결과 (캠핑장별)")
             for camp in result_df["캠핑장"].unique():
                 camp_df = result_df[result_df["캠핑장"] == camp]
-                camp_avail = len(camp_df[camp_df["상태"] == "예약가능"])
-                with st.expander(f"{camp} — 예약가능 {camp_avail}건"):
-                    for date in sorted(camp_df["날짜"].unique()):
-                        date_df = camp_df[camp_df["날짜"] == date]
-                        st.markdown(f"**📅 {date}**")
-                        for group in date_df["상품군"].unique():
-                            group_df = date_df[date_df["상품군"] == group]
-                            error_rows = group_df[group_df["상태"] == "오류"]
-                            if not error_rows.empty:
-                                st.markdown(f"- {group}: ⚠️ 조회 오류 ({error_rows['객실명'].iloc[0]})")
-                                continue
-                            avail = group_df[group_df["상태"] == "예약가능"]
-                            if not avail.empty:
-                                names = ", ".join(avail["객실명"].tolist())
-                                st.markdown(f"- {group}: 🟢 {len(avail)}곳 예약가능 → {names}")
-                            else:
-                                st.markdown(f"- {group}: 🔴 매진")
-                    st.markdown("---")
+                st.markdown(f"### 🏕️ {camp}")
+
+                for date in sorted(camp_df["날짜"].unique()):
+                    date_df = camp_df[camp_df["날짜"] == date]
+                    st.markdown(f"**📅 {date}**")
+
+                    for group in date_df["상품군"].unique():
+                        group_df = date_df[date_df["상품군"] == group]
+
+                        error_rows = group_df[group_df["상태"] == "오류"]
+                        if not error_rows.empty:
+                            st.markdown(f"- **{group}**: ⚠️ 조회 오류 — {error_rows['객실명'].iloc[0]}")
+                            continue
+
+                        total_sites = len(group_df)
+                        avail_rows = group_df[group_df["상태"] == "예약가능"]
+                        avail_names = avail_rows["객실명"].tolist()
+
+                        if avail_names:
+                            names_text = ", ".join(avail_names)
+                            st.markdown(
+                                f"- **{group}** ({len(avail_names)}/{total_sites} 예약가능): "
+                                f"🟢 {names_text}"
+                            )
+                        else:
+                            st.markdown(f"- **{group}** (0/{total_sites} 예약가능): 🔴 매진")
+
+                st.markdown("---")
         else:
             st.info("조회 결과가 없습니다.")
 
