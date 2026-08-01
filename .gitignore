@@ -17,3 +17,6 @@ Thumbs.db
 
 # 배포 스크립트 (SSH 키 경로 등 개인 환경 정보 포함, 커밋/서버 전송 제외)
 deploy.bat
+
+# 유튜브 계정 로그인 쿠키 (민감 정보, 절대 커밋 금지)
+apps/youtube_music/cookies.txt

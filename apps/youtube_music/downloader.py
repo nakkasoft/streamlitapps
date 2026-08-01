@@ -6,7 +6,7 @@ yt-dlp를 사용하여 유튜브 영상에서 오디오를 추출합니다.
 
 import os
 import yt_dlp
-from .config import DOWNLOAD_DIR, YDL_OPTIONS
+from .config import DOWNLOAD_DIR, YDL_OPTIONS, YDL_INFO_OPTIONS
 
 
 def ensure_download_dir():
@@ -24,8 +24,7 @@ def get_video_info(url: str) -> dict | None:
         영상 정보 딕셔너리 또는 None
     """
     try:
-        opts = {"quiet": True, "no_warnings": True}
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(YDL_INFO_OPTIONS) as ydl:
             info = ydl.extract_info(url, download=False)
             return {
                 "title": info.get("title"),
