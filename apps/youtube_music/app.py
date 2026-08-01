@@ -119,12 +119,35 @@ st.caption(f"저장 위치: `{DOWNLOAD_DIR}` | 보관 기간: {FILE_RETENTION_DA
 
 files = list_downloaded_files()
 if files:
-    df = pd.DataFrame(files)
-    st.dataframe(
-        df[["파일명", "크기", "다운로드일시"]],
-        use_container_width=True,
-        hide_index=True,
-    )
+    header = st.columns([4, 1, 2, 1.5])
+    header[0].markdown("**파일명**")
+    header[1].markdown("**크기**")
+    header[2].markdown("**다운로드일시**")
+    header[3].markdown("**받기**")
+
+    @st.cache_data(show_spinner=False)
+    def _read_file_bytes(path: str, mtime: float) -> bytes:
+        # mtime을 캐시 키에 포함시켜, 파일이 바뀌면(재다운로드 등) 캐시를 새로 읽습니다.
+        with open(path, "rb") as fp:
+            return fp.read()
+
+    for f in files:
+        cols = st.columns([4, 1, 2, 1.5])
+        cols[0].write(f["파일명"])
+        cols[1].write(f["크기"])
+        cols[2].write(f["다운로드일시"])
+        try:
+            file_mtime = os.path.getmtime(f["경로"])
+            file_bytes = _read_file_bytes(f["경로"], file_mtime)
+            cols[3].download_button(
+                "⬇️ 다운로드",
+                data=file_bytes,
+                file_name=f["파일명"],
+                mime="audio/mpeg",
+                key=f"dl_{f['파일명']}",
+            )
+        except OSError:
+            cols[3].error("읽기 실패")
 else:
     st.info("아직 다운로드된 파일이 없습니다.")
 
